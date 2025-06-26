@@ -1,12 +1,12 @@
 {
   "name": "raftlink",
-  "version": "1.0.6",
+  "version": "1.0.8",
   "description": "A comprehensive, feature-rich, and modern Lavalink v4 client for Node.js",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "homepage": "https://github.com/YourUsername/RaftLink#readme",
+  "homepage": "https://github.com/fugaxproofficial/RaftLink#readme",
   "bugs": {
-    "url": "https://github.com/YourUsername/RaftLink/issues"
+    "url": "https://github.com/fugaxproofficial/RaftLink/issues"
   },
   "scripts": {
     "build": "tsc",
@@ -17,7 +17,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/YourUsername/RaftLink.git"
+    "url": "git+https://github.com/fugaxproofficial/RaftLink.git"
   },
   "keywords": [
     "lavalink",

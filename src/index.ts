@@ -1,6 +1,6 @@
 /**
  * @file RaftLink's main export file.
- * @author Your Name
+ * @author fugaxpro
  */
 
 export * from './structures/RaftLinkManager';
