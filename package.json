@@ -1,0 +1,43 @@
+{
+  "name": "raftlink",
+  "version": "1.0.6",
+  "description": "A comprehensive, feature-rich, and modern Lavalink v4 client for Node.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "homepage": "https://github.com/YourUsername/RaftLink#readme",
+  "bugs": {
+    "url": "https://github.com/YourUsername/RaftLink/issues"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YourUsername/RaftLink.git"
+  },
+  "keywords": [
+    "lavalink",
+    "discord",
+    "music",
+    "lavalink-v4",
+    "typescript"
+  ],
+  "author": "fugaxpro",
+  "license": "ISC",
+  "dependencies": {
+    "node-fetch": "^2.7.0",
+    "ws": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.5.0",
+    "@types/node-fetch": "^2.6.12",
+    "@types/ws": "^8.5.5",
+    "eslint": "^8.47.0",
+    "prettier": "^3.0.2",
+    "typescript": "^5.1.6"
+  }
+}
