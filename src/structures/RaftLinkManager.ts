@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import { RaftLinkNode } from './RaftLinkNode';
 import { RaftLinkPlayer } from './RaftLinkPlayer';
-import { ManagerOptions, NodeOptions, PlayerOptions, VoiceServerUpdate, VoiceStateUpdate, LoadTracksResult, StatsPayload } from '../types';
+import { ManagerOptions, NodeOptions, PlayerOptions, VoiceServerUpdate, VoiceStateUpdate, LoadTracksResult, StatsPayload, SourceType } from '../types';
 
 /**
  * The main hub for RaftLink, manages all nodes and players.
@@ -78,6 +78,7 @@ export class RaftLinkManager extends EventEmitter {
      * @param payload The raw voice state or server update payload.
      */
     public handleVoiceUpdate(payload: VoiceStateUpdate | VoiceServerUpdate): void {
+        console.log(`[RaftLink] [Manager] Received voice update payload:`, JSON.stringify(payload, null, 2));
         const player = this.players.get(payload.guild_id);
         if (player) player.handleVoiceUpdate(payload);
     }
@@ -86,10 +87,11 @@ export class RaftLinkManager extends EventEmitter {
      * Searches for tracks using the best available node.
      * @param query The search query or URL.
      */
-    public async search(query: string, requester: any): Promise<LoadTracksResult> {
+    public async search(query: string, requester: any, source?: SourceType): Promise<LoadTracksResult> {
         const node = this.getIdealNode();
         if (!node) throw new Error('No available Lavalink nodes to perform a search.');
-        const result = await node.rest.loadTracks(query);
+        const finalQuery = source ? `${source}:${query}` : query;
+        const result = await node.rest.loadTracks(finalQuery);
         if (result.loadType === 'PLAYLIST_LOADED') {
             (result.data as any).tracks = (result.data as any).tracks.map((track: any) => ({ ...track, requester }));
         } else if (result.data) {

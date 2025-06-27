@@ -15,3 +15,14 @@ export interface VoiceServerUpdate {
     guild_id: string;
     endpoint: string;
 }
+
+export enum SourceType {
+    YouTube = "ytsearch",
+    YouTubeMusic = "ytmsearch",
+    SoundCloud = "scsearch",
+    Spotify = "spsearch",
+    AppleMusic = "amsearch",
+    Deezer = "dzsearch",
+    DeezerISRC = "dzisrc",
+    // Add other sources as needed based on your lavasrc configuration
+}
