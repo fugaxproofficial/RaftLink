@@ -44,7 +44,7 @@ export class RestManager {
 
     public loadTracks(identifier: string): Promise<LoadTracksResult> {
         const searchPrefixes = [
-            "ytsearch:", "scsearch:", "dzsearch:", "spsearch:", "bcsearch:", "ymsearch:",
+            "ytsearch:", "ytmsearch:", "scsearch:", "spsearch:", "amsearch:", "dzsearch:", "dzisrc:",
             "spshortsearch:", "apple:", "deezer:", "spotify:", "soundcloud:", "bandcamp:",
             "youtube:", "yandexmusic:"
         ];
