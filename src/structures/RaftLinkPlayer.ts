@@ -78,12 +78,17 @@ export class RaftLinkPlayer extends EventEmitter {
         this.currentTrack = nextTrack;
         this.playing = true;
         console.log(`[RaftLink] [Player] Now playing '${nextTrack.info.title}' in guild ${this.guildId}`);
-        await this.node.rest.updatePlayer(this.guildId, { encodedTrack: nextTrack.encoded });
+        try {
+            await this.node.rest.updatePlayer(this.guildId, { encodedTrack: nextTrack.encoded });
+        } catch (e) {
+            this.emit('trackError', this, this.currentTrack, e);
+        }
     }
 
     /** Stops the current track, clears the player, and disconnects. */
     public async stop(): Promise<void> {
         this.playing = false;
+        this.queue.clear();
         await this.node.rest.updatePlayer(this.guildId, { encodedTrack: null });
     }
 
@@ -118,10 +123,10 @@ export class RaftLinkPlayer extends EventEmitter {
      * Connects to a voice channel.
      * @param channelId The ID of the voice channel.
      */
-    public connect(channelId: string): this {
+    public connect(channelId: string, options: { selfDeaf?: boolean, selfMute?: boolean } = {}): this {
         this.channelId = channelId;
         this.node.manager['send'](this.guildId, {
-            op: 4, d: { guild_id: this.guildId, channel_id: this.channelId, self_mute: false, self_deaf: true },
+            op: 4, d: { guild_id: this.guildId, channel_id: this.channelId, self_mute: options.selfMute ?? false, self_deaf: options.selfDeaf ?? true },
         });
         return this;
     }
@@ -149,6 +154,7 @@ export class RaftLinkPlayer extends EventEmitter {
             this.node.rest.updatePlayer(this.guildId, {
                 voice: { token: this.voiceServer.token, endpoint: this.voiceServer.endpoint, sessionId: this.voiceState.session_id },
             });
+            console.log(`[RaftLink] [Player] Voice update sent for guild ${this.guildId}`);
         }
     }
 }

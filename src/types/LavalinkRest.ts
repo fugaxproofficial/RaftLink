@@ -21,6 +21,7 @@ export interface TrackInfo {
 export interface PlaylistInfo {
     name: string;
     selectedTrack: number;
+    tracks: Track[];
 }
 
 export interface LoadTracksResult {

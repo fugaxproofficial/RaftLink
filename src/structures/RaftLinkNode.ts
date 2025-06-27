@@ -71,6 +71,7 @@ export class RaftLinkNode extends EventEmitter {
         this.connected = false;
         this.ws = null;
         this.emit('disconnect', code, reason.toString());
+        if (code === 1006) console.warn(`[RaftLink] [Node] WebSocket closed with code 1006: Abnormal closure. Reconnecting...`);
         if (code !== 1000 || reason.toString() !== 'Manually disconnected') this.reconnect();
     }
 

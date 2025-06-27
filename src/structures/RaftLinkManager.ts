@@ -89,7 +89,13 @@ export class RaftLinkManager extends EventEmitter {
     public async search(query: string, requester: any): Promise<LoadTracksResult> {
         const node = this.getIdealNode();
         if (!node) throw new Error('No available Lavalink nodes to perform a search.');
-        return node.rest.loadTracks(query);
+        const result = await node.rest.loadTracks(query);
+        if (result.loadType === 'PLAYLIST_LOADED') {
+            (result.data as any).tracks = (result.data as any).tracks.map((track: any) => ({ ...track, requester }));
+        } else if (result.data) {
+            (result.data as any) = (result.data as any).map((track: any) => ({ ...track, requester }));
+        }
+        return result;
     }
 
     /**
@@ -102,8 +108,8 @@ export class RaftLinkManager extends EventEmitter {
             .sort((a, b) => {
                 const aStats = a.stats as StatsPayload;
                 const bStats = b.stats as StatsPayload;
-                if (!aStats.cpu) return 1; // Prioritize nodes with stats
-                if (!bStats.cpu) return -1;
+                if (!aStats || !aStats.cpu) return 1;
+                if (!bStats || !bStats.cpu) return -1;
                 return (aStats.cpu.lavalinkLoad / aStats.cpu.cores) * 100 - (bStats.cpu.lavalinkLoad / bStats.cpu.cores) * 100;
             })[0];
     }
