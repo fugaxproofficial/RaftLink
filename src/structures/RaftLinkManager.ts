@@ -9,15 +9,32 @@ import { ManagerOptions, NodeOptions, PlayerOptions, VoiceServerUpdate, VoiceSta
 export class RaftLinkManager extends EventEmitter {
     public readonly nodes = new Map<string, RaftLinkNode>();
     public readonly players = new Map<string, RaftLinkPlayer>();
-    public userId: string;
+    public userId: string | null = null;
+
+    private nodesToAdd: NodeOptions[] | undefined;
 
     private readonly send: (guildId: string, payload: any) => void;
 
     constructor(options: ManagerOptions) {
         super();
-        this.userId = options.userId;
         this.send = options.send;
-        for (const nodeOptions of options.nodes) this.addNode(nodeOptions);
+        if (options.userId) this.userId = options.userId;
+        if (options.nodes) {
+            this.nodesToAdd = options.nodes;
+            if (this.userId) this.addNodes(this.nodesToAdd);
+        }
+    }
+
+    public init(userId: string) {
+        this.userId = userId;
+        if (this.nodesToAdd) {
+            this.addNodes(this.nodesToAdd);
+            this.nodesToAdd = undefined;
+        }
+    }
+
+    private addNodes(nodes: NodeOptions[]) {
+        for (const nodeOptions of nodes) this.addNode(nodeOptions);
     }
 
     /**

@@ -30,15 +30,15 @@ export class RaftLinkNode extends EventEmitter {
 
     public connect(): void {
         if (this.connected || this.ws) return;
-        const headers: { [key: string]: string } = {
+        const headers: { [key: string]: string | undefined } = {
             Authorization: this.options.password,
-            'User-Id': this.manager.userId,
+            'User-Id': this.manager.userId ?? undefined,
             'Client-Name': `RaftLink/${require('../../package.json').version}`,
         };
         if (this.sessionId) headers['Resume-Key'] = this.sessionId;
         const url = `ws${this.options.secure ? 's' : ''}://${this.options.host}:${this.options.port}/v4/websocket`;
 
-        this.ws = new WebSocket(url, { headers });
+        this.ws = new WebSocket(url, { headers: Object.fromEntries(Object.entries(headers).filter(([, v]) => v !== undefined)) });
         this.ws.on('open', this.onOpen.bind(this));
         this.ws.on('message', this.onMessage.bind(this));
         this.ws.on('error', this.onError.bind(this));

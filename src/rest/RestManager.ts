@@ -43,7 +43,14 @@ export class RestManager {
     }
 
     public loadTracks(identifier: string): Promise<LoadTracksResult> {
-        return this.request<LoadTracksResult>(Endpoints.loadTracks(identifier), 'GET');
+        const searchPrefixes = [
+            "ytsearch:", "scsearch:", "dzsearch:", "spsearch:", "bcsearch:", "ymsearch:",
+            "spshortsearch:", "apple:", "deezer:", "spotify:", "soundcloud:", "bandcamp:",
+            "youtube:", "yandexmusic:"
+        ];
+        const hasPrefix = searchPrefixes.some(prefix => identifier.startsWith(prefix));
+        const finalIdentifier = hasPrefix ? identifier : `ytsearch:${identifier}`;
+        return this.request<LoadTracksResult>(Endpoints.loadTracks(finalIdentifier), 'GET');
     }
 
     public decodeTrack(encodedTrack: string): Promise<Track> {

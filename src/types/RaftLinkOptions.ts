@@ -1,8 +1,8 @@
 export interface ManagerOptions {
     /** The user ID of the bot. */
-    userId: string;
+    userId?: string;
     /** The array of nodes to connect to. */
-    nodes: NodeOptions[];
+    nodes?: NodeOptions[];
     /** The function to send voice channel updates to Discord. */
     send: (guildId: string, payload: any) => void;
 }
