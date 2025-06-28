@@ -60,11 +60,10 @@ npm install raftlink
 
 This example demonstrates how to set up a basic music bot with RaftLink in just a few lines of code.
 
-```typescript
-import { RaftLinkManager, SourceType, RaftLinkPlayer, Track } from 'raftlink';
-import { Client, GatewayIntentBits, TextChannel } from 'discord.js';
-
-// --- Bot and RaftLink Initialization ---
+```javascript
+const { Client, GatewayIntentBits } = require('discord.js');
+const { RaftLinkManager, SourceType } = require('raftlink');
+const config = require('./config.json');
 
 const client = new Client({
     intents: [
@@ -75,96 +74,295 @@ const client = new Client({
     ],
 });
 
+const nodes = [
+    {
+        host: config.lavalink.host,
+        port: config.lavalink.port,
+        password: config.lavalink.password,
+    },
+];
+
 const raftLink = new RaftLinkManager({
-    nodes: [{
-        host: 'localhost',
-        port: 2333,
-        password: 'youshallnotpass',
-    }],
     send: (guildId, payload) => {
         const guild = client.guilds.cache.get(guildId);
         if (guild) guild.shard.send(payload);
     },
+    nodes: nodes, // Pass nodes in the constructor
 });
-
-// --- RaftLink Event Handling ---
-
-raftLink.on('nodeConnect', (node) => {
-    console.log(`[RaftLink] Node "${node.options.identifier}" connected.`);
-});
-
-raftLink.on('trackStart', (player: RaftLinkPlayer, track: Track) => {
-    const channel = client.channels.cache.get(player.textChannelId!) as TextChannel;
-    if (channel) {
-        channel.send(`▶️ Now playing: **${track.info.title}** by *${track.info.author}*`);
-    }
-});
-
-raftLink.on('queueEnd', (player: RaftLinkPlayer) => {
-    const channel = client.channels.cache.get(player.textChannelId!) as TextChannel;
-    if (channel) {
-        channel.send('✅ Queue has finished. Leaving voice channel.');
-    }
-    player.destroy();
-});
-
-// --- Discord.js Event Handling ---
 
 client.on('ready', () => {
-    raftLink.init(client.user!.id);
-    console.log(`Bot is ready! Logged in as ${client.user!.tag}`);
+    const botId = client.user.id;
+    raftLink.init(botId); // Only pass userId
+    console.log(`Bot is ready! Logged in as ${client.user.tag}`);
+    console.log('RaftLink initialized with nodes:', nodes);
+    console.log('Discord Client Intents:', client.options.intents.toArray()); // Log active intents
 });
 
 client.on('raw', (d) => {
-    // Forward voice updates to RaftLink
+    // Only handle VOICE_STATE_UPDATE and VOICE_SERVER_UPDATE events for RaftLink
     if (d.t === 'VOICE_STATE_UPDATE' || d.t === 'VOICE_SERVER_UPDATE') {
-        raftLink.handleVoiceUpdate(d.d);
+        console.log(`[Discord Raw Payload] Handling voice update: Type: ${d.t}, Guild ID: ${d.d ? d.d.guild_id : 'N/A'}, Channel ID: ${d.d ? d.d.channel_id : 'N/A'}`);
+        try {
+            raftLink.handleVoiceUpdate(d.d);
+        } catch (error) {
+            console.error(`[Error] Failed to handle voice update for raw payload type ${d.t}:`, error);
+        }
+    } else {
+        // Log other raw Discord events for debugging if needed, but don't pass to RaftLink
+        console.log(`[Discord Raw Payload] Ignoring non-voice event: Type: ${d.t}, Guild ID: ${d.d ? d.d.guild_id : 'N/A'}, Channel ID: ${d.d ? d.d.channel_id : 'N/A'}`);
+    }
+});
+
+// Enhanced handleVoiceUpdate logging within RaftLinkPlayer.ts (already done in RaftLink library)
+// Adding a check here for completeness, though the primary issue is Discord not sending the event.
+raftLink.on('playerUpdate', (payload) => {
+    if (payload.state && payload.state.voice) {
+        const { sessionId, token, endpoint } = payload.state.voice;
+        if (!sessionId) console.warn(`[RaftLink] [Player] Missing sessionId in playerUpdate voice state for guild ${payload.guildId}`);
+        if (!token) console.warn(`[RaftLink] [Player] Missing token in playerUpdate voice state for guild ${payload.guildId}`);
+        if (!endpoint) console.warn(`[RaftLink] [Player] Missing endpoint in playerUpdate voice state for guild ${payload.guildId}`);
     }
 });
 
 client.on('messageCreate', async (message) => {
-    if (!message.guild || message.author.bot) return;
+    if (message.author.bot) {
+        console.log(`[Message] Ignoring bot message from ${message.author.tag}`);
+        return;
+    }
+    if (!message.guild) {
+        console.log(`[Message] Ignoring DM from ${message.author.tag}`);
+        return;
+    }
 
-    const prefix = '!';
-    if (!message.content.startsWith(prefix)) return;
+    console.log(`[Command] Received command "${message.content}" from ${message.author.tag} in guild ${message.guild.name}`);
 
-    const args = message.content.slice(prefix.length).trim().split(/ +/);
-    const command = args.shift()!.toLowerCase();
-
-    if (command === 'play') {
+    if (message.content.startsWith('!play') || message.content.startsWith('!yt') || message.content.startsWith('!sc') || message.content.startsWith('!sp') || message.content.startsWith('!am')) {
+        const command = message.content.split(' ')[0];
+        const args = message.content.split(' ').slice(1);
         const query = args.join(' ');
-        const voiceChannel = message.member?.voice.channel;
 
+        if (!query) {
+            console.log(`[Command: ${command}] No query provided by ${message.author.tag}`);
+            return message.channel.send('Please provide a song name or URL to play.');
+        }
+
+        const voiceChannel = message.member.voice.channel;
         if (!voiceChannel) {
+            console.log(`[Command: ${command}] ${message.author.tag} not in a voice channel.`);
             return message.channel.send('You need to be in a voice channel to play music!');
         }
 
-        let player = raftLink.createPlayer({
-            guildId: message.guild.id,
-            channelId: voiceChannel.id,
-            textChannelId: message.channel.id,
-        });
+        try {
+            let player = raftLink.players.get(message.guild.id);
+            console.log(`[Command: ${command}] Current player for guild ${message.guild.id}: ${player ? 'exists' : 'does not exist'}`);
 
-        player.connect(voiceChannel.id);
+            if (!player) {
+                console.log(`[Command: ${command}] Creating new player for guild ${message.guild.id} in channel ${voiceChannel.name}`);
+                player = raftLink.createPlayer({
+                    guildId: message.guild.id,
+                    channelId: voiceChannel.id,
+                    textChannelId: message.channel.id,
+                });
+                console.log(`[Command: ${command}] Attempting to connect to voice channel ${voiceChannel.id}`);
+                await player.connect(voiceChannel.id);
+                console.log(`[Command: ${command}] Bot connected to voice channel ${voiceChannel.name} in guild ${message.guild.name}.`);
 
-        const res = await raftLink.search(query, message.author);
+                // Add a small delay to allow Discord to send voice updates
+                console.log(`[Command: ${command}] Waiting for 1.5 seconds for Discord voice updates...`);
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                console.log(`[Command: ${command}] Finished waiting.`);
+            } else if (player.channelId !== voiceChannel.id) {
+                console.log(`[Command: ${command}] Player already exists in a different channel (${player.channelId}), requested channel ${voiceChannel.id}`);
+                return message.channel.send('I am already playing in another voice channel in this guild. Please join my channel or stop the current playback.');
+            }
 
-        if (res.loadType === 'NO_MATCHES') {
-            return message.channel.send('No results found for your query.');
+            let source = SourceType.YouTube; // Default to YouTube for !play
+            switch (command) {
+                case '!yt':
+                    source = SourceType.YouTube;
+                    break;
+                case '!sc':
+                    source = SourceType.SoundCloud;
+                    break;
+                case '!sp':
+                    source = SourceType.Spotify;
+                    break;
+                case '!am':
+                    source = SourceType.AppleMusic;
+                    break;
+            }
+
+            console.log(`[Command: ${command}] Searching for "${query}" on source "${source}" requested by ${message.author.tag}`);
+            const res = await raftLink.search(query, message.author, source);
+            console.log(`[Command: ${command}] Search result loadType: ${res ? res.loadType : 'N/A'}`);
+
+            if (!res || res.loadType === 'NO_MATCHES' || (res.loadType !== 'PLAYLIST_LOADED' && res.data.length === 0)) {
+                console.log(`[Command: ${command}] No results found for query "${query}" on source "${source}"`);
+                return message.channel.send('No results found for your query.');
+            }
+
+            let tracksToAdd = [];
+            if (res.loadType === 'PLAYLIST_LOADED') {
+                tracksToAdd = res.data.tracks;
+                console.log(`[Command: ${command}] Enqueuing playlist "${res.data.name}" with ${res.data.tracks.length} tracks.`);
+                message.channel.send(`Enqueuing playlist **${res.data.name}** with ${res.data.tracks.length} tracks.`);
+            } else {
+                tracksToAdd = [res.data[0]];
+                console.log(`[Command: ${command}] Enqueuing single track "${tracksToAdd[0].info.title}" by "${tracksToAdd[0].info.author}".`);
+                message.channel.send(`Enqueuing **${tracksToAdd[0].info.title}** by **${tracksToAdd[0].info.author}**.`);
+            }
+
+            const initialQueueSize = player.queue.size;
+            player.queue.add(tracksToAdd);
+            console.log(`[Command: ${command}] Tracks added to queue. New queue size: ${player.queue.size}`);
+
+            if (!player.playing && !player.paused && initialQueueSize === 0) {
+                console.log(`[Command: ${command}] Player not playing, not paused, and queue was empty. Starting playback.`);
+                player.play();
+            } else {
+                console.log(`[Command: ${command}] Player state: playing=${player.playing}, paused=${player.paused}, initialQueueSize=${initialQueueSize}. Not starting playback.`);
+            }
+        } catch (error) {
+            console.error(`[Error] Command ${command} failed for guild ${message.guild.id}:`, error);
+            if (error.message.includes('Missing access') || error.message.includes('Not permitted')) {
+                message.channel.send('I do not have permission to connect to your voice channel. Please check my permissions.');
+            } else if (error.message.includes('Connection timed out')) {
+                message.channel.send('Failed to connect to the voice channel. The connection timed out.');
+            } else {
+                message.channel.send(`An error occurred while trying to play the song: ${error.message}`);
+            }
         }
-
-        player.queue.add(res.data[0]);
-        message.channel.send(`Enqueuing **${res.data[0].info.title}**.`);
-
-        if (!player.playing && !player.paused) {
-            player.play();
+    } else if (message.content === '!stop') {
+        const player = raftLink.players.get(message.guild.id);
+        if (player) {
+            console.log(`[Command: !stop] Stopping player for guild ${message.guild.id}`);
+            player.destroy();
+            raftLink.players.delete(message.guild.id);
+            message.channel.send('Stopped playback and cleared the queue.');
+        } else {
+            console.log(`[Command: !stop] No player found for guild ${message.guild.id}`);
+            message.channel.send('No music is currently playing.');
+        }
+    } else if (message.content === '!skip') {
+        const player = raftLink.players.get(message.guild.id);
+        if (player && player.queue.size > 0) {
+            console.log(`[Command: !skip] Skipping track for guild ${message.guild.id}`);
+            player.stop();
+            message.channel.send('Skipped the current track.');
+        } else {
+            console.log(`[Command: !skip] No track to skip or queue is empty for guild ${message.guild.id}`);
+            message.channel.send('No track to skip or queue is empty.');
+        }
+    } else if (message.content === '!queue') {
+        const player = raftLink.players.get(message.guild.id);
+        if (player && player.queue.size > 0) {
+            const queueList = player.queue.map((track, index) => `${index + 1}. ${track.info.title}`).join('\n');
+            console.log(`[Command: !queue] Displaying queue for guild ${message.guild.id}. Size: ${player.queue.size}`);
+            message.channel.send(`**Current Queue:**\n${queueList}`);
+        } else {
+            console.log(`[Command: !queue] Queue is empty for guild ${message.guild.id}`);
+            message.channel.send('The queue is empty.');
         }
     }
 });
 
-client.login('YOUR_BOT_TOKEN');
-```
+// RaftLink Player Events for detailed error logging
+raftLink.on('nodeConnect', node => {
+    console.log(`[RaftLink Event] Node "${node.options.host}" connected.`);
+});
 
+raftLink.on('nodeDisconnect', (node, code, reason) => { // Added 'code' parameter
+    console.error(`[RaftLink Event] Node "${node.options.host}" disconnected. Code: ${code}, Reason: ${reason || 'Unknown'}`);
+    for (const player of raftLink.players.values()) {
+        if (player.node === node) {
+            console.log(`[RaftLink Event] Informing guild ${player.guildId} about node disconnect.`);
+            client.channels.cache.get(player.textChannelId).send(`The music service (Lavalink) node **${node.options.host}** disconnected. Playback might be interrupted. Reason: ${reason || 'Unknown'}`);
+            player.destroy();
+            raftLink.players.delete(player.guildId);
+        }
+    }
+});
+
+raftLink.on('nodeError', (node, error) => {
+    console.error(`[RaftLink Event] Node "${node.options.host}" encountered an error:`, error);
+    for (const player of raftLink.players.values()) {
+        if (player.node === node) {
+            console.log(`[RaftLink Event] Informing guild ${player.guildId} about node error.`);
+            client.channels.cache.get(player.textChannelId).send(`The music service (Lavalink) node **${node.options.host}** encountered an error: ${error.message}. Playback might be affected.`);
+        }
+    }
+});
+
+raftLink.on('trackStart', (player, track) => {
+    console.log(`[RaftLink Event] Now playing: "${track.info.title}" in guild ${player.guildId}.`);
+    client.channels.cache.get(player.textChannelId).send(`Now playing: **${track.info.title}**`);
+});
+
+raftLink.on('trackEnd', (player, track, reason) => {
+    console.log(`[RaftLink Event] Track ended: "${track ? track.info.title : 'Unknown'}" in guild ${player.guildId}. Reason: ${reason}.`);
+    if (reason === 'REPLACED') {
+        console.log('[RaftLink Event] Track was replaced, not playing next.');
+        return;
+    }
+    if (player.queue.size > 0) {
+        console.log('[RaftLink Event] Queue not empty, playing next track.');
+        player.play();
+    } else {
+        console.log('[RaftLink Event] Queue finished. Destroying player.');
+        client.channels.cache.get(player.textChannelId).send('Queue finished.');
+        player.destroy();
+        raftLink.players.delete(player.guildId);
+    }
+});
+
+raftLink.on('trackStuck', (player, track, threshold) => {
+    console.error(`[RaftLink Event] Track stuck: "${track.info.title}" in guild ${player.guildId}. Threshold: ${threshold}.`);
+    client.channels.cache.get(player.textChannelId).send(`Error: Track **${track.info.title}** got stuck after ${threshold / 1000} seconds. Skipping to the next track.`);
+    player.stop();
+});
+
+raftLink.on('trackError', (player, track, error) => {
+    console.error(`[RaftLink Event] Track error: "${track ? track.info.title : 'Unknown'}" in guild ${player.guildId}. Error:`, error);
+    client.channels.cache.get(player.textChannelId).send(`Error playing **${track ? track.info.title : 'Unknown'}**: ${error.message}. Skipping to the next track.`);
+    player.stop();
+});
+
+raftLink.on('socketClosed', async (player, payload) => {
+    console.error(`[RaftLink Event] Socket closed for guild ${player.guildId}. Code: ${payload.code}, Reason: ${payload.reason}, By Remote: ${payload.byRemote}.`);
+    if (payload.byRemote) {
+        console.log(`[RaftLink Event] Attempting to reconnect for guild ${player.guildId}...`);
+        client.channels.cache.get(player.textChannelId).send(`Voice connection closed unexpectedly. Code: ${payload.code}, Reason: ${payload.reason}. Attempting to reconnect...`);
+        try {
+            await player.connect(player.channelId);
+            console.log(`[RaftLink Event] Successfully reconnected for guild ${player.guildId}.`);
+            client.channels.cache.get(player.textChannelId).send(`Successfully reconnected to voice channel.`);
+        } catch (error) {
+            console.error(`[RaftLink Event] Failed to reconnect for guild ${player.guildId}:`, error);
+            client.channels.cache.get(player.textChannelId).send(`Failed to reconnect to voice channel. Please try playing a song again.`);
+            player.destroy();
+            raftLink.players.delete(player.guildId);
+        }
+    } else {
+        console.log(`[RaftLink Event] Socket closed by bot for guild ${player.guildId}. Destroying player.`);
+        player.destroy();
+        raftLink.players.delete(player.guildId);
+    }
+});
+
+client.login(config.discord_bot_token).catch(err => {
+    console.error('[Error] Failed to login to Discord:', err);
+});
+```
+## config.json 
+```{
+  "discord_bot_token": "bot_token",
+  "lavalink": {
+    "host": "host",
+    "port": port,
+    "password": "password"
+  }
+}
+```
 ## API Reference
 
 ### `RaftLinkManager`
