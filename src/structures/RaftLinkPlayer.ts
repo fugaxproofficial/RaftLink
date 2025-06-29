@@ -92,6 +92,13 @@ export class RaftLinkPlayer extends EventEmitter {
         await this.node.rest.updatePlayer(this.guildId, { encodedTrack: null });
     }
 
+    /** Skips the current track and plays the next one in the queue. */
+    public async skip(): Promise<void> {
+        this.playing = false;
+        await this.node.rest.updatePlayer(this.guildId, { encodedTrack: null });
+        this.play();
+    }
+
     /**
      * Pauses or resumes the player.
      * @param state True to pause, false to resume. Defaults to true.
