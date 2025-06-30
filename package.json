@@ -1,6 +1,6 @@
 {
   "name": "raftlink",
-  "version": "1.0.21",
+  "version": "1.0.22",
   "description": "A comprehensive, feature-rich, and modern Lavalink v4 client for Node.js",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

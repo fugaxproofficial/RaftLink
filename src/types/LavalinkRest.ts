@@ -16,6 +16,7 @@ export interface TrackInfo {
     title: string;
     uri?: string;
     sourceName: string;
+    artworkUrl?: string;
 }
 
 export interface PlaylistInfo {

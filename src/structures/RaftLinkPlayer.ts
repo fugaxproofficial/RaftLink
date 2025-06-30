@@ -32,23 +32,28 @@ export class RaftLinkPlayer extends EventEmitter {
         this.node.on('event', (payload) => {
             if (payload.guildId !== this.guildId) return;
             switch (payload.type) {
-                case 'TrackStartEvent':
+                case 'TrackStartEvent': {
                     this.playing = true;
                     this.emit('trackStart', this, this.currentTrack);
                     break;
-                case 'TrackEndEvent':
+                }
+                case 'TrackEndEvent': {
                     this.playing = false;
+                    const endedTrack = this.currentTrack;
                     if (payload.reason !== 'REPLACED') {
                         this.currentTrack = null;
                         this.play();
                     }
-                    this.emit('trackEnd', this, this.currentTrack, payload);
+                    this.emit('trackEnd', this, endedTrack, payload);
                     break;
-                case 'TrackExceptionEvent':
+                }
+                case 'TrackExceptionEvent': {
                     console.error(`[RaftLink] [Player] Track exception for guild ${this.guildId}:`, payload);
-                    this.emit('trackException', this, this.currentTrack, payload);
-                    this.emit('trackError', this, this.currentTrack, payload); // Generic error event
+                    const erroredTrack = this.currentTrack;
+                    this.emit('trackException', this, erroredTrack, payload);
+                    this.emit('trackError', this, erroredTrack, payload); // Generic error event
                     break;
+                }
                 case 'TrackStuckEvent': this.emit('trackStuck', this, this.currentTrack, payload); break;
                 case 'WebSocketClosedEvent': this.emit('wsClosed', this, payload); break;
             }
@@ -86,16 +91,16 @@ export class RaftLinkPlayer extends EventEmitter {
     }
 
     /** Stops the current track, clears the player, and disconnects. */
-    public async stop(): Promise<void> {
+    public stop(): void {
         this.playing = false;
         this.queue.clear();
-        await this.node.rest.updatePlayer(this.guildId, { encodedTrack: null });
+        this.node.rest.updatePlayer(this.guildId, { encodedTrack: null });
     }
 
     /** Skips the current track and plays the next one in the queue. */
-    public async skip(): Promise<void> {
+    public skip(): void {
         this.playing = false;
-        await this.node.rest.updatePlayer(this.guildId, { encodedTrack: null });
+        this.node.rest.updatePlayer(this.guildId, { encodedTrack: null });
         this.play();
     }
 
@@ -124,6 +129,18 @@ export class RaftLinkPlayer extends EventEmitter {
     public async setVolume(volume: number): Promise<void> {
         this.volume = Math.max(0, Math.min(volume, 1000));
         await this.node.rest.updatePlayer(this.guildId, { volume: this.volume });
+    }
+
+    /**
+     * Sets the loop mode for the player.
+     * @param mode The loop mode: 'none', 'track', or 'queue'.
+     */
+    public async setLoop(mode: 'none' | 'track' | 'queue'): Promise<void> {
+        // This functionality is typically handled by the bot's queue management,
+        // not directly by Lavalink. However, if Lavalink ever supports it,
+        // this method would be used to send the update.
+        // For now, this method can be a placeholder or throw an error if not implemented.
+        console.warn(`[RaftLink] [Player] setLoop method is a placeholder. Loop mode '${mode}' should be handled by the bot's queue logic.`);
     }
 
     /**

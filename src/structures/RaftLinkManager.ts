@@ -92,10 +92,12 @@ export class RaftLinkManager extends EventEmitter {
         if (!node) throw new Error('No available Lavalink nodes to perform a search.');
         const finalQuery = source ? `${source}:${query}` : query;
         const result = await node.rest.loadTracks(finalQuery);
-        if (result.loadType === 'PLAYLIST_LOADED') {
-            (result.data as any).tracks = (result.data as any).tracks.map((track: any) => ({ ...track, requester }));
-        } else if (result.data) {
-            (result.data as any) = (result.data as any).map((track: any) => ({ ...track, requester }));
+        if (result.data) {
+            if (result.loadType === 'PLAYLIST_LOADED') {
+                (result.data as any).tracks = (result.data as any).tracks.map((track: any) => ({ ...track, requester }));
+            } else if (result.loadType === 'SEARCH_RESULT' || result.loadType === 'TRACK_LOADED') {
+                (result.data as any) = (result.data as any).map((track: any) => ({ ...track, requester }));
+            }
         }
         return result;
     }

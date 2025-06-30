@@ -45,4 +45,9 @@ export class Queue extends Array<Track> {
             [this[i], this[j]] = [this[j], this[i]];
         }
     }
+
+    /** Returns the queue as an array. */
+    public toArray(): Track[] {
+        return [...this];
+    }
 }
