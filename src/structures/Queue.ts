@@ -46,6 +46,52 @@ export class Queue extends Array<Track> {
         }
     }
 
+    /**
+     * Removes a track from the queue at the specified index.
+     * @param index The index of the track to remove.
+     * @returns The removed track, or undefined if the index is out of bounds.
+     */
+    public remove(index: number): Track | undefined {
+        if (index < 0 || index >= this.length) return undefined;
+        return this.splice(index, 1)[0];
+    }
+
+    /**
+     * Gets a track from the queue at the specified index.
+     * @param index The index of the track to get.
+     * @returns The track at the specified index, or undefined if the index is out of bounds.
+     */
+    public get(index: number): Track | undefined {
+        if (index < 0 || index >= this.length) return undefined;
+        return this[index];
+    }
+
+    /** Returns the queue as an array. */
+    /**
+     * Moves a track from one position to another within the queue.
+     * @param fromIndex The current index of the track.
+     * @param toIndex The desired index for the track.
+     * @returns The moved track, or undefined if indices are out of bounds.
+     */
+    public move(fromIndex: number, toIndex: number): Track | undefined {
+        if (fromIndex < 0 || fromIndex >= this.length || toIndex < 0 || toIndex >= this.length) return undefined;
+        const [movedTrack] = this.splice(fromIndex, 1);
+        this.splice(toIndex, 0, movedTrack);
+        return movedTrack;
+    }
+
+    /** Returns the queue as an array. */
+    /**
+     * Removes elements from an array and, if necessary, inserts new elements in their place, returning the deleted elements.
+     * @param start The zero-based location in the array from which to start removing elements.
+     * @param deleteCount The number of elements to remove.
+     * @param items Elements to insert into the array in place of the deleted elements.
+     * @returns An array containing the elements that were deleted.
+     */
+    public splice(start: number, deleteCount?: number, ...items: Track[]): Track[] {
+        return super.splice(start, deleteCount === undefined ? this.length - start : deleteCount, ...items);
+    }
+
     /** Returns the queue as an array. */
     public toArray(): Track[] {
         return [...this];

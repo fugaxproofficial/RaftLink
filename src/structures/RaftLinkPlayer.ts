@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { RaftLinkNode } from './RaftLinkNode';
-import { PlayerOptions, Track, VoiceServerUpdate, VoiceStateUpdate } from '../types';
+import { PlayerOptions, Track, VoiceServerUpdate, VoiceStateUpdate, Filters, LyricsResult, LoadTracksResult } from '../types';
 import { Queue } from './Queue';
 
 /**
@@ -18,6 +18,9 @@ export class RaftLinkPlayer extends EventEmitter {
     public paused = false;
     public volume = 100;
     public position = 0;
+    public filters: Filters = {};
+    public autoplay = false;
+    public loopMode: 'none' | 'track' | 'queue' = 'none';
 
     private voiceState: Partial<VoiceStateUpdate> = {};
     private voiceServer: Partial<VoiceServerUpdate> = {};
@@ -28,6 +31,8 @@ export class RaftLinkPlayer extends EventEmitter {
         this.guildId = options.guildId;
         this.channelId = options.channelId;
         this.textChannelId = options.textChannelId ?? null;
+
+        this.clearFilters(); // Ensure crystal clear audio by default
 
         this.node.on('event', (payload) => {
             if (payload.guildId !== this.guildId) return;
@@ -73,11 +78,38 @@ export class RaftLinkPlayer extends EventEmitter {
         if (track) this.queue.add(track);
         if (this.playing) return;
 
-        const nextTrack = this.queue.removeFirst();
+        let nextTrack: Track | undefined;
+
+        if (this.loopMode === 'track' && this.currentTrack) {
+            nextTrack = this.currentTrack;
+        } else if (this.loopMode === 'queue' && this.currentTrack) {
+            this.queue.add(this.currentTrack);
+            nextTrack = this.queue.removeFirst();
+        } else {
+            nextTrack = this.queue.removeFirst();
+        }
+
         if (!nextTrack) {
-            console.log(`[RaftLink] [Player] Queue is empty for guild ${this.guildId}`);
-            this.emit('queueEnd', this);
-            return;
+            if (this.autoplay && this.currentTrack) {
+                try {
+                    const recommended = await this.node.rest.getRecommendedTracks(this.currentTrack.info.identifier);
+                    if (recommended.loadType === 'SEARCH_RESULT' && (recommended.data as Track[]).length > 0) {
+                        this.queue.add((recommended.data as Track[])[0]);
+                        nextTrack = this.queue.removeFirst();
+                        this.node.manager.emit('debug', `[RaftLink] [Player] Autoplayed track: ${nextTrack?.info.title}`);
+                    } else {
+                        this.node.manager.emit('debug', `[RaftLink] [Player] No recommended tracks found for autoplay.`);
+                    }
+                } catch (e) {
+                    this.node.manager.emit('debug', `[RaftLink] [Player] Error during autoplay: ${e}`);
+                }
+            }
+
+            if (!nextTrack) {
+                console.log(`[RaftLink] [Player] Queue is empty for guild ${this.guildId}`);
+                this.emit('queueEnd', this);
+                return;
+            }
         }
 
         this.currentTrack = nextTrack;
@@ -136,11 +168,38 @@ export class RaftLinkPlayer extends EventEmitter {
      * @param mode The loop mode: 'none', 'track', or 'queue'.
      */
     public async setLoop(mode: 'none' | 'track' | 'queue'): Promise<void> {
-        // This functionality is typically handled by the bot's queue management,
-        // not directly by Lavalink. However, if Lavalink ever supports it,
-        // this method would be used to send the update.
-        // For now, this method can be a placeholder or throw an error if not implemented.
-        console.warn(`[RaftLink] [Player] setLoop method is a placeholder. Loop mode '${mode}' should be handled by the bot's queue logic.`);
+        this.loopMode = mode;
+        this.node.manager.emit('debug', `[RaftLink] [Player] Loop mode set to: ${mode}`);
+    }
+
+    /**
+     * Applies filters to the player.
+     * @param filters The filters to apply.
+     */
+    public async setFilters(filters: Filters): Promise<void> {
+        this.filters = { ...this.filters, ...filters };
+        await this.node.rest.updatePlayer(this.guildId, { filters: this.filters });
+    }
+
+    /** Clears all applied filters. */
+    public async clearFilters(): Promise<void> {
+        this.filters = {};
+        await this.node.rest.updatePlayer(this.guildId, { filters: {} });
+    }
+
+    /**
+     * Fetches lyrics for the current track.
+     * @returns The lyrics as a string, or null if not found.
+     */
+    public async getLyrics(): Promise<LyricsResult | null> {
+        if (!this.currentTrack) return null;
+        try {
+            const lyrics = await this.node.rest.getLyrics(this.currentTrack.info.identifier);
+            return lyrics;
+        } catch (e) {
+            this.node.manager.emit('debug', `[RaftLink] [Player] Error fetching lyrics: ${e}`);
+            return null;
+        }
     }
 
     /**

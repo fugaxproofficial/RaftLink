@@ -87,11 +87,24 @@ export class RaftLinkManager extends EventEmitter {
      * Searches for tracks using the best available node.
      * @param query The search query or URL.
      */
-    public async search(query: string, requester: any, source?: SourceType): Promise<LoadTracksResult> {
+    public async search(query: string, requester: any, source?: string): Promise<LoadTracksResult> {
         const node = this.getIdealNode();
         if (!node) throw new Error('No available Lavalink nodes to perform a search.');
-        const finalQuery = source ? `${source}:${query}` : query;
+
+        let finalQuery = query;
+        const spotifyTrackRegex = /(?:https:\/\/open\.spotify\.com\/track\/|spotify:track:)([a-zA-Z0-9]+)/;
+        const spotifyPlaylistRegex = /(?:https:\/\/open\.spotify\.com\/playlist\/|spotify:playlist:)([a-zA-Z0-9]+)/;
+        const spotifyAlbumRegex = /(?:https:\/\/open\.spotify\.com\/album\/|spotify:album:)([a-zA-Z0-9]+)/;
+
+        if (spotifyTrackRegex.test(query) || spotifyPlaylistRegex.test(query) || spotifyAlbumRegex.test(query)) {
+            // If it's a Spotify URL, Lavalink with lavasrc can directly load it.
+            finalQuery = query;
+        } else {
+            finalQuery = source ? `${source}:${query}` : `ytsearch:${query}`;
+        }
+
         const result = await node.rest.loadTracks(finalQuery);
+
         if (result.data) {
             if (result.loadType === 'PLAYLIST_LOADED') {
                 (result.data as any).tracks = (result.data as any).tracks.map((track: any) => ({ ...track, requester }));

@@ -1,7 +1,8 @@
-import fetch from 'node-fetch';
+import fetch, { RequestInit, Response } from 'node-fetch';
 import { RaftLinkNode } from '../structures/RaftLinkNode';
 import { Endpoints } from './endpoints';
-import { LoadTracksResult, PlayerUpdateData, Track } from '../types';
+import { LavalinkError } from './LavalinkError';
+import { LoadTracksResult, PlayerUpdateData, Track, LyricsResult } from '../types';
 
 export class RestManager {
     private readonly node: RaftLinkNode;
@@ -12,66 +13,75 @@ export class RestManager {
         this.baseUrl = `http${node.options.secure ? 's' : ''}://${node.options.host}:${node.options.port}/v4`;
     }
 
-    public async request<T>(endpoint: string, method: string, data?: unknown): Promise<T> {
-        console.log(`[RaftLink] [RestManager] Making request to ${endpoint} with method ${method}`);
-        const res = await fetch(`${this.baseUrl}${endpoint}`, {
+    public async get<T>(endpoint: string): Promise<T> {
+        return this.request<T>({ endpoint });
+    }
+
+    public async request<T>({ endpoint, method = 'GET', data }: { endpoint: string, method?: string, data?: unknown }): Promise<T> {
+        const url = `${this.baseUrl}${endpoint}`;
+        const headers = {
+            Authorization: this.node.options.password,
+            'Content-Type': 'application/json',
+        };
+
+        const init: RequestInit = {
             method,
-            headers: { Authorization: this.node.options.password, 'Content-Type': 'application/json' },
+            headers,
             body: data ? JSON.stringify(data) : undefined,
-        });
+        };
+
+        this.node.manager.emit('debug', `[RaftLink] [RestManager] -> [${method}] ${url}`);
+        const res: Response = await fetch(url, init);
 
         if (!res.ok) {
-            let errorBody: any = { message: `Request failed with status ${res.status}` };
-            try {
-                const text = await res.text();
-                try {
-                    errorBody = JSON.parse(text);
-                } catch (e) {
-                    errorBody.message = text;
-                }
-            } catch (e) {
-                console.error('[RaftLink] [RestManager] Failed to read error body', e);
-            }
-            console.error(`[RaftLink] [RestManager] Request to ${endpoint} failed with status ${res.status}:`, errorBody.message || 'No error message');
-            throw new Error(`Lavalink request to ${endpoint} failed with status ${res.status}: ${errorBody.message || 'No error message'}`);
+            const errorBody = await res.json().catch(() => ({ message: 'Unknown error' }));
+            this.node.manager.emit('debug', `[RaftLink] [RestManager] <- [${method}] ${url} | ${res.status} ${res.statusText}`, errorBody);
+            throw new LavalinkError(res.status, errorBody.error || 'Unknown Error', errorBody.message || 'No error message');
         }
 
-        if (res.status === 204) return undefined as T;
+        if (res.status === 204) {
+            this.node.manager.emit('debug', `[RaftLink] [RestManager] <- [${method}] ${url} | 204 No Content`);
+            return undefined as T;
+        }
+
         const responseData = await res.json();
-        console.log(`[RaftLink] [RestManager] Successfully received response from ${endpoint}`);
+        this.node.manager.emit('debug', `[RaftLink] [RestManager] <- [${method}] ${url} | ${res.status} ${res.statusText}`, responseData);
         return responseData as T;
     }
 
-    public loadTracks(identifier: string): Promise<LoadTracksResult> {
-        const searchPrefixes = [
-            "ytsearch:", "ytmsearch:", "scsearch:", "spsearch:", "amsearch:", "dzsearch:", "dzisrc:",
-            "spshortsearch:", "apple:", "deezer:", "spotify:", "soundcloud:", "bandcamp:",
-            "youtube:", "yandexmusic:"
-        ];
-        const hasPrefix = searchPrefixes.some(prefix => identifier.startsWith(prefix));
-        const finalIdentifier = hasPrefix ? identifier : `ytsearch:${identifier}`;
-        return this.request<LoadTracksResult>(Endpoints.loadTracks(finalIdentifier), 'GET');
+    public async loadTracks(identifier: string): Promise<LoadTracksResult> {
+        const isUrl = /^https?:\/\//.test(identifier);
+        const finalIdentifier = isUrl ? identifier : `ytsearch:${identifier}`;
+        return this.get<LoadTracksResult>(Endpoints.loadTracks(finalIdentifier));
     }
 
-    public decodeTrack(encodedTrack: string): Promise<Track> {
-        return this.request<Track>(Endpoints.decodeTrack(encodedTrack), 'GET');
+    public async decodeTrack(encodedTrack: string): Promise<Track> {
+        return this.get<Track>(Endpoints.decodeTrack(encodedTrack));
     }
 
-    public updatePlayer(guildId: string, data: PlayerUpdateData): Promise<any> {
+    public async updatePlayer(guildId: string, data: PlayerUpdateData): Promise<any> {
         if (!this.node.sessionId) throw new Error('No session ID available for player updates.');
         const endpoint = Endpoints.player(this.node.sessionId, guildId);
-        return this.request(endpoint, 'PATCH', data);
+        return this.request({ endpoint, method: 'PATCH', data });
     }
 
-    public destroyPlayer(guildId: string): Promise<void> {
+    public async destroyPlayer(guildId: string): Promise<void> {
         if (!this.node.sessionId) return Promise.resolve();
         const endpoint = Endpoints.player(this.node.sessionId, guildId);
-        return this.request(endpoint, 'DELETE');
+        await this.request({ endpoint, method: 'DELETE' });
     }
 
-    public updateSession(resuming: boolean, timeout: number): Promise<void> {
+    public async updateSession(resuming: boolean, timeout: number): Promise<void> {
         if (!this.node.sessionId) throw new Error('No session ID available to update.');
         const endpoint = Endpoints.sessions(this.node.sessionId);
-        return this.request(endpoint, 'PATCH', { resuming, timeout });
+        await this.request({ endpoint, method: 'PATCH', data: { resuming, timeout } });
+    }
+
+    public async getRecommendedTracks(identifier: string): Promise<LoadTracksResult> {
+        return this.get<LoadTracksResult>(Endpoints.recommendations(identifier));
+    }
+
+    public async getLyrics(trackId: string): Promise<LyricsResult> {
+        return this.get<LyricsResult>(Endpoints.lyrics(trackId));
     }
 }

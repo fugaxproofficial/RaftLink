@@ -5,4 +5,6 @@ export const Endpoints = {
     sessions: (sessionId: string) => `/sessions/${sessionId}`,
     player: (sessionId: string, guildId: string) => `/sessions/${sessionId}/players/${guildId}`,
     players: (sessionId: string) => `/sessions/${sessionId}/players`,
+    recommendations: (identifier: string) => `/loadtracks?identifier=ytsearch:recommended%20${encodeURIComponent(identifier)}`,
+    lyrics: (trackId: string) => `/lyrics?trackId=${trackId}`,
 };
