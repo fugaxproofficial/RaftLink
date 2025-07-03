@@ -1,0 +1,35 @@
+PS C:\CODING\projects\creations\RAFTLINK> git push origin --force
+Enumerating objects: 31, done.
+Counting objects: 100% (31/31), done.
+Delta compression using up to 4 threads
+Compressing objects: 100% (18/18), done.
+Writing objects: 100% (18/18), 11.57 KiB | 215.00 KiB/s, done.
+Total 18 (delta 8), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (8/8), completed with 7 local objects.
+remote: error: GH013: Repository rule violations found for refs/heads/main.
+remote:
+remote: - GITHUB PUSH PROTECTION
+remote:   —————————————————————————————————————————
+remote:     Resolve the following violations before pushing again
+remote:
+remote:     - Push cannot contain secrets
+remote:
+remote:
+remote:      (?) Learn how to resolve a blocked push
+remote:      https://docs.github.com/code-security/secret-scanning/working-with-secret-scanning-and-push-protection/working-with-push-protection-from-the-command-line#resolving-a-blocked-push
+remote:
+remote:
+remote:       —— Discord Bot Token —————————————————————————————————
+remote:        locations:
+remote:          - commit: 1314021068a45496511b680522da943e3bd1eee5
+remote:            path: error.txt:3
+remote:
+remote:        (?) To push, remove secret from commit(s) or follow this URL to allow the secret.
+remote:        https://github.com/fugaxproofficial/RaftLink/security/secret-scanning/unblock-secret/2zN2ZAEuARSgzLHEdkPWM3m6oxa
+remote:
+remote:
+remote:
+To https://github.com/fugaxproofficial/RaftLink.git
+ ! [remote rejected] main -> main (push declined due to repository rule violations)
+error: failed to push some refs to 'https://github.com/fugaxproofficial/RaftLink.git'
+PS C:\CODING\projects\creations\RAFTLINK> 
